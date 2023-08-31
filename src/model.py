@@ -9,17 +9,19 @@ class SakeNet(nn.Module):
         super().__init__()
         self.cfg = cfg
         if hasattr(timm.models, cfg.model_name):
-            base_model = timm.create_model(
-                cfg.model_name, num_classes=0,
-                pretrained=cfg.pretrained, in_chans=cfg.in_channels)
-            self.backborn = base_model
-            in_features = base_model.num_features
             print(f'load imagenet model_name: {cfg.model_name}')
             print(f'load imagenet pretrained: {cfg.pretrained}')
+            
+            # timmのモデルをバックボーンとして、ヘッドに埋め込み次元にするためのLinear層を追加
+            base_model = timm.create_model(
+                cfg.model_name, num_classes=0,
+                pretrained=cfg.pretrained, in_chans=cfg.in_channels
+            )
+            self.backborn = base_model
+            self.in_features = base_model.num_features
+            self.fc = nn.Linear(self.in_features, cfg.embedding_dim)
         else:
             raise NotImplementedError
-        self.in_features = in_features
-        self.fc = nn.Linear(self.in_features, cfg.embedding_dim)
     
     def get_embedding(self, image: torch.Tensor) -> torch.Tensor:
         emb = self.backborn(image)
@@ -34,9 +36,9 @@ class SakeNet(nn.Module):
 if __name__ == '__main__':
     from pathlib import Path
 
-    from main import Config
+    from config import Config
     
-    EXP_NAME="convnext_base"
+    EXP_NAME='convnext_base'
     device = torch.device('cuda:0' if torch.cuda.is_available() else'cpu')
     cfg = Config
     batch_size = cfg.batch_size
