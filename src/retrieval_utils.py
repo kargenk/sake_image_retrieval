@@ -102,3 +102,47 @@ def infer(data_loader: DataLoader, model: nn.Module) -> np.array:
     embeddings = np.concatenate(embeddings)
     
     return embeddings
+
+def compute_rank_list(recommendations: list[str], gts: list[str], topk: int = 20) -> list[int]:
+    """
+    予測したランキングのうち、最初に真のアイテムが見つかった位置を要素とするリストを作成する.
+
+    Args:
+        recommendations (list[str]): 予測したランキングのリスト
+        gts (list[str]): 真のアイテムランキングのリスト
+        topk (int, optional): 上位いくつまで考慮するか. Defaults to 20.
+
+    Returns:
+        list: 最初に真のアイテムが見つかった位置を要素とするリスト. topkのランク外はinfとする
+    """
+    rank_list = []
+    for rec_items, true_items in zip(recommendations, gts):
+        found = False
+        # topk件の推薦アイテムを対象とする
+        rec_items = rec_items.split()[:topk]
+        true_items = true_items.split()[:topk]
+        # 推薦アイテムを1位から順に走査し、最初に真のアイテムが見つかった位置を記録
+        for idx, rec in enumerate(rec_items, start=1):
+            if rec in set(true_items):
+                rank_list.append(idx)
+                found = True
+                break
+        if not found:
+            rank_list.append(float('inf'))
+    
+    return rank_list
+
+def compute_mrr(rank_list: list[int]) -> float:
+    """
+    Mean Reciprocal Rank(MRR)を算出する.
+
+    Args:
+        rank_list (list[int]): 予測したランクのうち、最初に真のアイテムが見つかった位置を要素とするリスト.
+                               ランク外はinfとして扱われ、RR = 0となる.
+
+    Returns:
+        float: Mean Reciprocal Rank
+    """
+    reciprocal_ranks = [1.0 / rank if rank != float('inf') else 0.0
+                        for rank in rank_list]
+    return np.mean(reciprocal_ranks)

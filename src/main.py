@@ -3,11 +3,13 @@ from pathlib import Path
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from config import Config
 from dataset import SakeDataset, get_transforms, read_data
 from model import SakeNet
-from retrieval_utils import FaissKNeighbors, fix_seed, infer
+from retrieval_utils import (FaissKNeighbors, compute_mrr, compute_rank_list,
+                             fix_seed, infer)
 
 if __name__ == '__main__':
     EXP_NAME='convnext_base'
@@ -51,7 +53,7 @@ if __name__ == '__main__':
         MODEL_DIR.mkdir(parents=True)
         torch.save(model.state_dict(), model_path)
 
-    # 埋め込みベクトルの作成
+    # 訓練データの埋め込みベクトルを作成
     if index_path.exists():
         train_embeddings = np.load(index_path)
     else:
@@ -66,10 +68,28 @@ if __name__ == '__main__':
     knn.fit(train_embeddings)
     knn.save_index()
     
-    # クエリ画像の検索
+    # クエリ画像の特徴量を取得
     if query_path.exists():
         query_embeddings = np.load(query_path)
     else:
         query_embeddings = infer(test_loader, model)
         np.save(query_path, query_embeddings)
     print(f'query: {query_embeddings.shape}')
+    
+    # クエリ画像の検索
+    cite_gids = []
+    for _q_emb in tqdm(query_embeddings):
+        distance, pred = knn.predict(_q_emb)
+        _cite_gids = [str(idx2cite_gid[idx]) for idx in pred]
+        cite_gids.append(' '.join(_cite_gids))
+    df_test['cite_gid'] = cite_gids
+    df_test[['gid', 'cite_gid']].to_csv(
+        OUTPUT_DIR.joinpath(f'submission_{EXP_NAME}.csv'), index=False)
+    
+    # TODO: 性能評価
+    print(df_test['cite_gid'].to_list())
+    print(df_test['gid'].to_list())
+    rank_list = compute_rank_list(df_test['cite_gid'].to_list(),
+                                  df_test['gid'].to_list())
+    score = compute_mrr(rank_list)
+    print(f'{EXP_NAME} MRR: {score}')
