@@ -13,8 +13,8 @@ class Config:
     embedding_dim = 1024
     num_target_class = 10
     batch_size = 256
-    num_workers  = 1
-    num_epochs = 300
+    num_workers  = 4
+    num_epochs = 100
     n_fold = 5
     
     optimizer_name = 'AdamW'

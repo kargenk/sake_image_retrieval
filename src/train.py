@@ -1,4 +1,5 @@
 import copy
+import csv
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -134,7 +135,7 @@ def run_training(
     best_epoch_loss = np.inf
     history = defaultdict(list)
     
-    for epoch in (1, num_epochs + 1):
+    for epoch in range(1, num_epochs + 1):
         train_epoch_loss = train_epoch(model,
                                        optimizer,
                                        scheduler,
@@ -199,7 +200,9 @@ if __name__ == '__main__':
     EXP_NAME = 'convnext_base_meigara'
     BASE_DIR = Path(__file__).parents[1]
     MODEL_DIR = BASE_DIR.joinpath('models')
+    OUTPUT_DIR = BASE_DIR.joinpath('outputs')
     model_path = MODEL_DIR.joinpath(f'{EXP_NAME}.pth')
+    history_path = OUTPUT_DIR.joinpath(f'{EXP_NAME}.log')
     
     fix_seed(Config.seed)  # シード値の固定
     cfg = Config()
@@ -247,53 +250,9 @@ if __name__ == '__main__':
                                   device=cfg.device,
                                   num_epochs=cfg.num_epochs)
     
-    # best_score = -np.inf
-    # for epoch in range(cfg.num_epochs):
-    #     # train
-    #     loss = train_epoch(
-    #         model=model,
-    #         dataloader=train_loader,
-    #         criterion=criterion,
-    #         device=cfg.device,
-    #     )
-
-    #     # validation
-    #     val_loss, val_outputs, val_targets = valid_epoch(
-    #         model=model,
-    #         dataloader=val_loader,
-    #         criterion=criterion,
-    #         device=cfg.device,
-    #     )
-
-    #     # MRRを計算
-    #     rank_list = compute_rank_list(val_outputs, val_targets)
-    #     eval_score = compute_mrr(rank_list)
-    #     logs = {
-    #         "Epoch": epoch,
-    #         "eval_score": eval_score,
-    #         "train_loss_epoch": loss.item(),
-    #         "valid_loss_epoch": val_loss.item(),
-    #     }
-
-    #     if best_score < eval_score:
-    #         best_score = eval_score
-    #         torch.save(model.state_dict(), f'ep{epoch}_fold{fold}.pth')
-
-    # torch.cuda.empty_cache()
-
-    # # # save best predictions with id
-    # # best_val_outputs = joblib.load(f"{name}.pkl")
-    # # outputs = {
-    # #     "gid": valid_df["gid"].tolist(),
-    # #     "predictions": np.array(best_val_outputs, dtype=np.float16),
-    # #     "targets":val_targets,  # type: ignore
-    # # }
-    # # joblib.dump(outputs, EXP_PREDS / f"{name}_best.pkl")
-    
-    # # # TODO: 性能評価
-    # # print(df_test['cite_gid'].to_list())
-    # # print(df_test['gid'].to_list())
-    # # rank_list = compute_rank_list(df_test['cite_gid'].to_list(),
-    # #                               df_test['gid'].to_list())
-    # # score = compute_mrr(rank_list)
-    # # print(f'{EXP_NAME} MRR: {score}')
+    # ログファイルの保存
+    with open(history_path, 'w', encoding='utf-8') as f:
+        keys = list(history.keys())
+        writer = csv.DictWriter(f, fieldnames=keys)
+        writer.writeheader()
+        writer.writerows(history)
