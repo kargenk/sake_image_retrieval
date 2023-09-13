@@ -120,7 +120,10 @@ def compute_rank_list(recommendations: list[str], gts: list[str], topk: int = 20
         found = False
         # topk件の推薦アイテムを対象とする
         rec_items = rec_items.split()[:topk]
-        true_items = true_items.split()[:topk]
+        if isinstance(true_items, int):
+            true_items = [true_items][:topk]
+        else:
+            true_items = true_items.split()[:topk]
         # 推薦アイテムを1位から順に走査し、最初に真のアイテムが見つかった位置を記録
         for idx, rec in enumerate(rec_items, start=1):
             if rec in set(true_items):

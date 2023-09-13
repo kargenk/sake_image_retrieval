@@ -8,11 +8,16 @@ from tqdm import tqdm
 from config import Config
 from dataset import SakeDataset, get_transforms, read_data
 from model import SakeNet
-from retrieval_utils import (FaissKNeighbors, compute_mrr, compute_rank_list,
-                             fix_seed, infer)
+from retrieval_utils import (
+    FaissKNeighbors,
+    compute_mrr,
+    compute_rank_list,
+    fix_seed,
+    infer,
+)
 
 if __name__ == '__main__':
-    EXP_NAME='convnext_base'
+    EXP_NAME='convnext_base_pretrain'
     BASE_DIR = Path(__file__).parents[1]
     MODEL_DIR = BASE_DIR.joinpath('models')
     FEATURE_DIR = BASE_DIR.joinpath('features')
@@ -87,8 +92,6 @@ if __name__ == '__main__':
         OUTPUT_DIR.joinpath(f'submission_{EXP_NAME}.csv'), index=False)
     
     # TODO: 性能評価
-    print(df_test['cite_gid'].to_list())
-    print(df_test['gid'].to_list())
     rank_list = compute_rank_list(df_test['cite_gid'].to_list(),
                                   df_test['gid'].to_list())
     score = compute_mrr(rank_list)

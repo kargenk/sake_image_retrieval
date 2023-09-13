@@ -1,9 +1,32 @@
+import torch
+
+
 class Config:
-    image_size = 224
     model_name = 'convnext_base'
-    in_channels = 3
-    embedding_dim = 128
+    debug = False
     pretrained = True
-    batch_size = 128
-    n_workers  = 0
     seed = 3407
+    device = torch.device('cuda:0' if torch.cuda.is_available() else'cpu')
+    
+    image_size = 224
+    in_channels = 3
+    embedding_dim = 1024
+    num_target_class = 10
+    batch_size = 256
+    num_workers  = 1
+    num_epochs = 300
+    n_fold = 5
+    
+    optimizer_name = 'AdamW'
+    optimizer_params = dict(
+        lr=1e-4,
+        weight_decay=1e-2,
+        eps=1e-6,
+        betas=(0.9, 0.999),
+    )
+
+    scheduler_name = 'CosineAnnealingLR'
+    scheduler_params = dict(
+        T_max=500,
+        eta_min=1e-6,
+    )
