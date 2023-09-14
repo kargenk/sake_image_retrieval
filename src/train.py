@@ -129,7 +129,8 @@ def run_training(
     scheduler,
     criterion,
     device,
-    num_epochs
+    num_epochs,
+    model_path
 ) -> list[nn.Module, dict[str, float]]:
     start = time.time()
     best_epoch_loss = np.inf
@@ -201,15 +202,14 @@ if __name__ == '__main__':
     BASE_DIR = Path(__file__).parents[1]
     MODEL_DIR = BASE_DIR.joinpath('models')
     OUTPUT_DIR = BASE_DIR.joinpath('outputs')
-    model_path = MODEL_DIR.joinpath(f'{EXP_NAME}.pth')
-    history_path = OUTPUT_DIR.joinpath(f'{EXP_NAME}.log')
+    
     
     fix_seed(Config.seed)  # シード値の固定
     cfg = Config()
     
     # フォルダの作成
-    if not model_path.exists():
-        MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    if not MODEL_DIR.exists():
+        MODEL_DIR.mkdir(parents=True)
     
     # データの読み込み
     _, df_train, _, _ = read_data()
@@ -228,12 +228,6 @@ if __name__ == '__main__':
         df_train.loc[val_ids, 'kfold'] = fold
     df_train.kfold = df_train.kfold.astype(int)
     
-    # データローダの準備
-    train_loader, val_loader = prepare_loaders(df_train, fold=0, cfg=cfg)
-    if cfg.debug:
-        sample = next(iter(train_loader))
-        plot_train_sample(sample)
-    
     # モデル、損失関数、最適化手法、スケジューラの定義
     model = SakeNet(cfg).to(cfg.device)
     criterion = nn.CrossEntropyLoss()
@@ -245,14 +239,26 @@ if __name__ == '__main__':
     scheduler = lr_scheduler_class(optimizer,
                                    **cfg.scheduler_params)
     
-    model, history = run_training(model, optimizer, scheduler,
-                                  criterion=criterion,
-                                  device=cfg.device,
-                                  num_epochs=cfg.num_epochs)
+    for fold in range(cfg.n_fold):
+        # データローダの準備
+        train_loader, val_loader = prepare_loaders(df_train, fold=fold, cfg=cfg)
+        if cfg.debug:
+            sample = next(iter(train_loader))
+            plot_train_sample(sample)
     
-    # ログファイルの保存
-    with open(history_path, 'w', encoding='utf-8') as f:
-        keys = list(history.keys())
-        writer = csv.DictWriter(f, fieldnames=keys)
-        writer.writeheader()
-        writer.writerows(history)
+        model_path = MODEL_DIR.joinpath(f'{EXP_NAME}_fold{fold}.pth')
+        model, history = run_training(model, optimizer, scheduler,
+                                      criterion=criterion,
+                                      device=cfg.device,
+                                      num_epochs=cfg.num_epochs,
+                                      model_path=model_path)
+        
+        # ログファイルの保存
+        history_path = OUTPUT_DIR.joinpath('logs'f'{EXP_NAME}_fold{fold}.log')
+        with open(history_path, 'w', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(list(history.keys()))  # Header
+            
+            train_log, val_log = list(history.values())
+            for train, val in zip(train_log, val_log):
+                writer.writerow(f'{train}{val}')

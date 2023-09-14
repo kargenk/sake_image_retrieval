@@ -11,10 +11,10 @@ class Config:
     image_size = 224
     in_channels = 3
     embedding_dim = 1024
-    num_target_class = 10
+    num_target_class = 2499
     batch_size = 256
     num_workers  = 4
-    num_epochs = 100
+    num_epochs = 20
     n_fold = 5
     
     optimizer_name = 'AdamW'
