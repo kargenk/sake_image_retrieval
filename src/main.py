@@ -12,9 +12,9 @@ from retrieval_utils import (FaissKNeighbors, compute_mrr, compute_rank_list,
                              fix_seed, infer)
 
 if __name__ == '__main__':
-    EXP_NAME='convnext_base_meigara_ep100'
+    EXP_NAME='convnext_base_meigara_fold4'
     BASE_DIR = Path(__file__).parents[1]
-    MODEL_DIR = BASE_DIR.joinpath('models', 'fold0')
+    MODEL_DIR = BASE_DIR.joinpath('models')
     FEATURE_DIR = BASE_DIR.joinpath('features')
     OUTPUT_DIR = BASE_DIR.joinpath('outputs')
     
@@ -44,13 +44,20 @@ if __name__ == '__main__':
                               pin_memory=True)
     
     # モデルの読み込み
-    model_path = MODEL_DIR.joinpath(f'{EXP_NAME}.pth')
-    model = SakeNet(Config).to(device)
+    model_path = MODEL_DIR.joinpath('kfolds', f'{EXP_NAME}.pth')
+    model = SakeNet(cfg).to(device)
     if model_path.exists():
         model.load_state_dict(torch.load(model_path))
         print(f'Loaded {model_path}')
     else:
         print('model not found.')
+    
+    # eff_model_path = MODEL_DIR.joinpath('tf_efficientnet_b0_ns_meigara_fold2.pth')
+    # eff_cfg = Config()
+    # eff_cfg.model_name = 'tf_efficientnet_b0_ns'
+    # eff_cfg.embedding_dim = 320
+    # efficient_model = SakeNet(eff_cfg).to(device)
+    # efficient_model.load_state_dict(torch.load(eff_model_path))
 
     # 参照データの埋め込みベクトルを作成
     index_path = FEATURE_DIR.joinpath(f'cite_embeddings_{EXP_NAME}.npy')
@@ -59,6 +66,8 @@ if __name__ == '__main__':
     else:
         FEATURE_DIR.mkdir(parents=True, exist_ok=True)
         index_embeddings = infer(index_loader, model)
+        # index_embeddings_eff = infer(index_loader, efficient_model)
+        # index_embeddings = np.concatenate([index_embeddings, index_embeddings_eff], axis=-1)
         np.save(index_path, index_embeddings)
     print(f'index: {index_embeddings.shape}')
     
@@ -74,6 +83,8 @@ if __name__ == '__main__':
         query_embeddings = np.load(query_path)
     else:
         query_embeddings = infer(query_loader, model)
+        # query_embeddings_eff = infer(query_loader, efficient_model)
+        # query_embeddings = np.concatenate([query_embeddings, query_embeddings_eff], axis=-1)
         np.save(query_path, query_embeddings)
     print(f'query: {query_embeddings.shape}')
     
@@ -85,7 +96,7 @@ if __name__ == '__main__':
         cite_gids.append(' '.join(_cite_gids))
     df_test['cite_gid'] = cite_gids
     df_test[['gid', 'cite_gid']].to_csv(
-        OUTPUT_DIR.joinpath(f'submission_{EXP_NAME}.csv'), index=False)
+        OUTPUT_DIR.joinpath('submissions', f'submission_{EXP_NAME}.csv'), index=False)
     
     # TODO: 性能評価
     rank_list = compute_rank_list(df_test['cite_gid'].to_list(),

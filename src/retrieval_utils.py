@@ -20,18 +20,19 @@ class FaissKNeighbors:
         self.d = None
         self.k = k
     
-    def fit(self, x: np.array) -> None:
+    def fit(self, embeddings: np.array) -> None:
         """
         インデックスを作成する.
 
         Args:
-            x (np.array): ベクトル
+            embeddings (np.array): 埋め込みベクトル
         """
-        x = x.copy()
-        self.d = x.shape[1]
+        embeddings = embeddings.copy()
+        self.d = embeddings.shape[1]
         # 内積を指標にインデックスを作成、正規化しておけばコサイン類似度として測れる
-        self.index = faiss.IndexFlatIP(self.d)
-        self.index.add(x.astype(np.float32))
+        self.index = faiss.IndexFlatL2(self.d)
+        faiss.normalize_L2(embeddings)
+        self.index.add(embeddings.astype(np.float32))
     
     def save_index(self) -> None:
         """ インデックスを保存する """
@@ -46,21 +47,22 @@ class FaissKNeighbors:
         self.d = self.index.d
         print(f'{self.index_path} read.')
     
-    def predict(self, x: np.array) -> tuple[np.array]:
+    def predict(self, queries: np.array) -> tuple[np.array]:
         """
         検索結果としてインデックスのうち近い距離をもつものを返す
 
         Args:
-            x (np.array): クエリベクトル
+            queries (np.array): クエリベクトル
 
         Returns:
             tuple[np.array]: 距離のリストとインデックスのリスト
         """
-        x = x.copy()
-        x = x.reshape(-1, self.d)
+        queries = queries.copy()
+        queries = queries.reshape(-1, self.d)
+        faiss.normalize_L2(queries)
         
-        distances, indices = self.index.search(x.astype(np.float32), k=self.k)
-        if x.shape[0] == 1:
+        distances, indices = self.index.search(queries.astype(np.float32), k=self.k)
+        if queries.shape[0] == 1:
             return distances[0], indices[0]
         else:
             return distances, indices

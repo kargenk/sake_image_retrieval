@@ -55,6 +55,7 @@ def train_epoch(
     criterion,
     device,
     epoch,
+    is_arc
 ) -> float:
     model.train()
     
@@ -70,7 +71,10 @@ def train_epoch(
         batch_size = images.size(0)
 
         with torch.cuda.amp.autocast():
-            preds = model(images)
+            if is_arc:
+                preds = model(images, labels)
+            else:
+                preds = model(images)
             loss = criterion(preds, labels)
 
         # 各種更新
@@ -96,7 +100,8 @@ def valid_epoch(
     dataloader,
     criterion,
     device,
-    epoch
+    epoch,
+    is_arc
 ) -> float:
     model.eval()
     
@@ -109,16 +114,21 @@ def valid_epoch(
         labels = data['labels'].to(device, dtype=torch.long)
         batch_size = images.size(0)
 
-        preds = model(images)
+        if is_arc:
+            preds = model(images, labels)
+        else:
+            preds = model(images)
         loss = criterion(preds, labels)
 
         running_loss += (loss.item() * batch_size)
         dataset_size += batch_size
         
         epoch_loss = running_loss / dataset_size
+        
+        # TODO accuracyの算出
 
         tbar.set_postfix(Epoch=epoch,
-                         Train_Loss=epoch_loss,
+                         Valid_Loss=epoch_loss,
                          LR=optimizer.param_groups[0]['lr'])
     
     return epoch_loss
@@ -130,7 +140,8 @@ def run_training(
     criterion,
     device,
     num_epochs,
-    model_path
+    model_path,
+    is_arc
 ) -> list[nn.Module, dict[str, float]]:
     start = time.time()
     best_epoch_loss = np.inf
@@ -143,12 +154,14 @@ def run_training(
                                        train_loader,
                                        criterion,
                                        device,
-                                       epoch)
+                                       epoch,
+                                       is_arc)
         val_epoch_loss = valid_epoch(model,
                                      val_loader,
                                      criterion,
                                      device,
-                                     epoch)
+                                     epoch,
+                                     is_arc)
         
         # ログ
         history['Train Loss'].append(train_epoch_loss)
@@ -198,14 +211,14 @@ def prepare_loaders(df: pd.DataFrame, fold: int, cfg: Config) -> list[DataLoader
     return train_loader, valid_loader
 
 if __name__ == '__main__':
-    EXP_NAME = 'convnext_base_meigara'
+    fix_seed(Config.seed)  # シード値の固定
+    cfg = Config()
+    
+    MODEL_NAME = cfg.model_name
+    EXP_NAME = MODEL_NAME + '_meigara'
     BASE_DIR = Path(__file__).parents[1]
     MODEL_DIR = BASE_DIR.joinpath('models')
     OUTPUT_DIR = BASE_DIR.joinpath('outputs')
-    
-    
-    fix_seed(Config.seed)  # シード値の固定
-    cfg = Config()
     
     # フォルダの作成
     if not MODEL_DIR.exists():
@@ -251,14 +264,17 @@ if __name__ == '__main__':
                                       criterion=criterion,
                                       device=cfg.device,
                                       num_epochs=cfg.num_epochs,
-                                      model_path=model_path)
+                                      model_path=model_path,
+                                      is_arc=cfg.use_arc)
         
         # ログファイルの保存
-        history_path = OUTPUT_DIR.joinpath('logs'f'{EXP_NAME}_fold{fold}.log')
+        history_path = OUTPUT_DIR.joinpath('logs', MODEL_NAME, f'{EXP_NAME}_fold{fold}.log')
         with open(history_path, 'w', encoding='utf-8') as f:
             writer = csv.writer(f)
             writer.writerow(list(history.keys()))  # Header
             
             train_log, val_log = list(history.values())
+            train_val_list = []
             for train, val in zip(train_log, val_log):
-                writer.writerow(f'{train}{val}')
+                train_val_list.append([train, val])
+            writer.writerows(train_val_list)
